@@ -1,3 +1,4 @@
+import Macrochat from './Macrotchat';
 import * as Helper from './Helper';
 
-export { Helper };
+export { Macrochat, Helper };
