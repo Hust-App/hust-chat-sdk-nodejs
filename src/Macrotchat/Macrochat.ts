@@ -276,6 +276,29 @@ export default class Macrochat extends EventEmitter {
           },
         };
 
+        if (!message.contact) {
+          const {
+            data: { ok, contato },
+          } = await this.api.get(`/contato/getContato`, {
+            params: { id_contato: id_contato_fk },
+          });
+
+          if (ok) {
+            const { id_whatsapp, foto_perfil, nome, id_contato } = contato;
+
+            const newContact: IContact = {
+              id: id_contato,
+              whatsappId: id_whatsapp,
+              name: nome,
+              profilePicture: foto_perfil,
+            };
+
+            this.contacts.push(newContact);
+
+            message.contact = newContact;
+          }
+        }
+
         this.emit('message', message);
       }
     });
