@@ -259,7 +259,12 @@ export default class Macrochat extends EventEmitter {
     this.conn.on('open', () => {
       this.logger.debug('Conexão WebSocket realizada com sucesso');
       clearInterval(intervalPingPong);
-      intervalPingPong = setInterval(() => this.conn.send(JSON.stringify({ metodo: 'ping' })), 10 * 1000);
+
+      intervalPingPong = setInterval(
+        () => this.conn.readyState === this.conn.OPEN && this.conn.send(JSON.stringify({ metodo: 'ping' })),
+        10 * 1000,
+      );
+
       this.logger.debug('Realizando login conexão WebSocket');
       this.conn.send(JSON.stringify({ metodo: 'login', token: this.authInfo.userToken }));
     });
@@ -348,7 +353,12 @@ export default class Macrochat extends EventEmitter {
 
     this.conn.on('close', async () => {
       this.logger.error('Conexão com WebSocket perdida, será feito uma nova tentativa em 1 segundo');
-      setTimeout(this.connectWS, 1000);
+      setTimeout(this.connectWS.bind(this), 1000);
+    });
+
+    this.conn.on('error', async e => {
+      this.logger.error(`Ocorreu um erro na conexão WebSocket ${e.toString()}`);
+      // setTimeout(this.connectWS.bind(this), 1000);
     });
   }
 
