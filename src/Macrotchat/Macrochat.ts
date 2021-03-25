@@ -433,14 +433,21 @@ export default class Macrochat extends EventEmitter {
     if (!ok) throw new Error(mensagem_usuario);
   }
 
-  async transferAttendance({ id_caller, department }: { id_caller: number; department: IDepartment }): Promise<void> {
-    // TODO - Transferir para usuário específico
-
+  async transferAttendance({
+    id_caller,
+    department,
+    user,
+  }: {
+    id_caller: number;
+    department: IDepartment;
+    user?: IUser;
+  }): Promise<void> {
     const {
       data: { ok },
     } = await this.api.post(`/chamado/transferirAtendimento`, {
       id_chamado: id_caller,
       id_departamento: department.id,
+      id_usuario: user?.id,
       token: this.authInfo.userToken,
     });
 
