@@ -40,6 +40,13 @@ interface IConnection {
   deviceStatus: IDeviceStatus;
 }
 
+interface IDepartment {
+  internal: boolean;
+  id: number;
+  name: string;
+  subDepartment?: IDepartment;
+}
+
 interface IContact {
   id: number;
   name: string;
@@ -47,11 +54,13 @@ interface IContact {
   whatsappId: string;
 }
 
-interface IDepartment {
-  internal: boolean;
+interface IUser {
   id: number;
+  email: string;
+  admin: boolean;
+  profilePicture: string;
+  departments: Array<IDepartment>;
   name: string;
-  subDepartment?: IDepartment;
 }
 
 interface ICaller {
@@ -96,6 +105,8 @@ export default class Macrochat extends EventEmitter {
   connections: Array<IConnection> = [];
 
   departments: Array<IDepartment> = [];
+
+  users: Array<IUser> = [];
 
   contacts: Array<IContact> = [];
 
@@ -153,6 +164,38 @@ export default class Macrochat extends EventEmitter {
     for (let i = 0; i < contatos.length; i += 1) {
       const { foto_perfil, id_contato, id_whatsapp, nome } = contatos[i];
       this.contacts.push({ name: nome, id: id_contato, profilePicture: foto_perfil, whatsappId: id_whatsapp });
+    }
+  }
+
+  async loadUsers(): Promise<void> {
+    this.logger.debug('Realizando busca dos usuários');
+
+    const {
+      data: { ok, mensagem_usuario, usuarios },
+    } = await this.api.get(`/usuario/getUsuarios`, { params: { token: this.authInfo.userToken } });
+
+    if (!ok) throw new Error(`Não foi possível buscar os usuários [${mensagem_usuario}]`);
+
+    this.users = [];
+
+    for (let i = 0; i < usuarios.length; i += 1) {
+      const { email, flag_gestor, foto_perfil, id_departamento_fk, id_usuario, nome } = usuarios[i];
+      const departmentsUser = id_departamento_fk.toString().split(',').map(parseFloat);
+
+      const departments: Array<IDepartment> = [];
+      for (let j = 0; j < departmentsUser.length; j += 1) {
+        const systemDepartment = this.departments.find(el => el.id === departmentsUser[j]);
+        if (systemDepartment) departments.push(systemDepartment);
+      }
+
+      this.users.push({
+        name: nome,
+        id: id_usuario,
+        profilePicture: foto_perfil,
+        admin: !!flag_gestor,
+        email,
+        departments,
+      });
     }
   }
 
@@ -280,7 +323,7 @@ export default class Macrochat extends EventEmitter {
           const {
             data: { ok, contato },
           } = await this.api.get(`/contato/getContato`, {
-            params: { id_contato: id_contato_fk },
+            params: { id_contato: id_contato_fk, token: this.authInfo.userToken },
           });
 
           if (ok) {
@@ -326,17 +369,19 @@ export default class Macrochat extends EventEmitter {
       throw new Error(mensagem_usuario);
     }
 
+    this.logger.info('Autenticação de conta realizado com sucesso');
+
     this.authInfo.userToken = token;
 
     // ********************************************
     await this.connectWS();
-    await this.loadConnections();
-    await this.loadDepartments();
-    await this.loadContacts();
+    await Promise.all([this.loadConnections(), this.loadDepartments(), this.loadContacts()]);
+    await this.loadUsers(); // Depende do carregamento de departamentos
     // ********************************************
     this.logger.debug(`${this.connections.length} conexões carregados`);
     this.logger.debug(`${this.departments.length} departamentos carregados`);
     this.logger.debug(`${this.contacts.length} contatos carregados`);
+    this.logger.debug(`${this.users.length} Usuários carregados`);
   }
 
   async sendMessage({
