@@ -63,13 +63,28 @@ interface IUser {
   name: string;
 }
 
-interface ICaller {
-  id: number;
-}
-
 interface IMessageMedia {
   buffer: Buffer;
   contentType: string;
+}
+
+enum EStatusCalled {
+  Waiting = 'atendimento_pendente',
+  Finished = 'atendimento_finalizado',
+  Attendance = 'atendimento',
+  DepartmentChoice = 'escolha_departamento',
+}
+
+interface ICalled {
+  id: number;
+  user?: IUser;
+  connection: IConnection;
+  department?: IDepartment;
+  contact: IContact;
+  dateStart: Date;
+  dateEnd?: Date;
+  flagFinished: boolean;
+  status: EStatusCalled;
 }
 
 interface IMessage {
@@ -78,11 +93,11 @@ interface IMessage {
   send: boolean;
   chatType: string; // Depois alterar para enum
   body?: string;
-  connection?: IConnection;
-  department?: IDepartment;
-  contact?: IContact;
-  caller?: ICaller;
-  getMedia?: () => Promise<IMessageMedia>;
+  connection: IConnection;
+  department: IDepartment;
+  contact: IContact;
+  called: ICalled;
+  getMedia: () => Promise<IMessageMedia>;
   // id_contato_fk
 }
 
@@ -90,7 +105,7 @@ enum ESendMessageType {
   showNameAttendance,
 }
 
-export default class Macrochat extends EventEmitter {
+class Macrochat extends EventEmitter {
   constructor() {
     super();
     this.setMaxListeners(30);
@@ -110,16 +125,15 @@ export default class Macrochat extends EventEmitter {
 
   contacts: Array<IContact> = [];
 
+  calleds: Array<ICalled> = [];
+
   protected authInfo: AuthenticationCredentials;
 
   messageSendConfig: Array<ESendMessageType> = [ESendMessageType.showNameAttendance];
 
-  // @ts-ignore
-  on(event: 'message', listener: (result: IMessage) => void): this;
-
   protected conn: WS;
 
-  async loadDepartments(): Promise<void> {
+  private async loadDepartments(): Promise<void> {
     const getDepartment = (departamentos: Array<any>): Array<IDepartment> => {
       const departmentsList: Array<IDepartment> = [];
 
@@ -148,6 +162,121 @@ export default class Macrochat extends EventEmitter {
     if (!ok) throw new Error(`Não foi possível buscar os departamentos [${mensagem_usuario}]`);
 
     this.departments = getDepartment(departamentos);
+  }
+
+  private serializeCalled(chamado: any): ICalled {
+    const statusEnumType: { [key: string]: EStatusCalled } = {
+      atendimento_pendente: EStatusCalled.Waiting,
+      atendimento_finalizado: EStatusCalled.Finished,
+      atendimento: EStatusCalled.Attendance,
+      escolha_departamento: EStatusCalled.DepartmentChoice,
+    };
+
+    const {
+      atendente,
+      conta_nome,
+      data,
+      data_finalizado,
+      flag_finalizado,
+      id_chamado,
+      id_departamento,
+      id_whatsapp,
+      status,
+    } = chamado;
+
+    // TODO - Algumas buscas estão sendo feitas pelo nome, falha
+    const department = this.departments.find(el => el.id === parseFloat(id_departamento));
+    const connection = this.connections.find(el => el.accountName === conta_nome);
+    const user = this.users.find(el => el.name === atendente);
+    const contact = this.contacts.find(el => el.whatsappId === id_whatsapp);
+
+    if (connection && contact) {
+      return {
+        id: id_chamado,
+        department,
+        connection,
+        user,
+        contact,
+        dateStart: new Date(data),
+        dateEnd: data_finalizado && new Date(data_finalizado),
+        flagFinished: !!flag_finalizado,
+        status: statusEnumType[status],
+      };
+    }
+
+    throw new Error(`Chamado sem informação suficiente`);
+  }
+
+  async getCalled({
+    id,
+    dateStart,
+    dateEnd,
+  }: {
+    id?: number;
+    dateStart?: Date;
+    dateEnd?: Date;
+  }): Promise<ICalled | Array<ICalled> | undefined> {
+    this.logger.debug('Realizando busca do chamado por parâmetro');
+
+    if (id) {
+      const calledLocalSearch = this.calleds.find(el => el.id === id);
+      if (calledLocalSearch) return calledLocalSearch;
+    }
+
+    const dataPost = {
+      token: this.authInfo.userToken,
+      id_chamado: id,
+      periodoInicial: dateStart,
+      periodoFinal: dateEnd,
+    };
+
+    const {
+      data: { ok, mensagem_usuario, chamados },
+    } = await this.api.post(`/chamado/getChamados`, dataPost, { timeout: 30 * 1000 });
+
+    if (!ok) throw new Error(`Não foi possível buscar os departamentos [${mensagem_usuario}]`);
+
+    if (chamados.length === 1) return this.serializeCalled(chamados[0]);
+
+    if (chamados.length > 1) {
+      const calleds: Array<ICalled> = [];
+      for (let i = 0; i < chamados.length; i += 1) {
+        try {
+          calleds.push(this.serializeCalled(chamados[i]));
+        } catch (e) {
+          // *
+        }
+      }
+
+      return calleds;
+    }
+    return undefined;
+  }
+
+  async loadCalleds(): Promise<void> {
+    this.logger.debug('Realizando busca dos chamados');
+
+    const dataPost = {
+      token: this.authInfo.userToken,
+      periodoFinal: new Date(),
+      periodoInicial: new Date(new Date().setDate(new Date().getDate() - 30)),
+    };
+
+    const {
+      data: { ok, mensagem_usuario, chamados },
+    } = await this.api.post(`/chamado/getChamados`, dataPost);
+
+    if (!ok) throw new Error(`Não foi possível buscar os chamados [${mensagem_usuario}]`);
+
+    this.calleds = [];
+
+    for (let i = 0; i < chamados.length; i += 1) {
+      try {
+        this.calleds.push(this.serializeCalled(chamados[i]));
+      } catch (e) {
+        this.logger.error(`Falha ao carregar chamado [${chamados[i].id_chamado}]`);
+      }
+    }
   }
 
   async loadContacts(): Promise<void> {
@@ -299,32 +428,15 @@ export default class Macrochat extends EventEmitter {
           id_chamado,
         } = rest;
 
+        // TODO - Retornar também mensagens enviadas
         if (flag_enviado) return;
 
-        const message: IMessage = {
-          date: new Date(dataMensagem),
-          body,
-          chatType: tipo_chat,
-          send: !!flag_enviado,
-          id: id_mensagem,
-          connection: this.connections.find(el => el.id === id_whatsapp_conexao_fk),
-          department: this.departments.find(el => el.id === id_departamento),
-          contact: this.contacts.find(el => el.id === id_contato_fk),
-          caller: { id: id_chamado },
-          getMedia: async () => {
-            const { data: media, headers } = await this.api.get(`/chat/getMediaFromMessageID`, {
-              params: { token: this.authInfo.userToken, id_mensagem },
-              responseType: 'arraybuffer',
-            });
+        const connection = this.connections.find(el => el.id === id_whatsapp_conexao_fk);
+        const department = this.departments.find(el => el.id === id_departamento);
+        let contact = this.contacts.find(el => el.id === id_contato_fk);
 
-            return {
-              buffer: media,
-              contentType: headers['content-type'],
-            };
-          },
-        };
-
-        if (!message.contact) {
+        if (!contact) {
+          // TODO - Levar para método específico
           const {
             data: { ok, contato },
           } = await this.api.get(`/contato/getContato`, {
@@ -343,9 +455,38 @@ export default class Macrochat extends EventEmitter {
 
             this.contacts.push(newContact);
 
-            message.contact = newContact;
+            contact = newContact;
           }
         }
+
+        let called = await this.getCalled({ id: id_chamado });
+        if (Array.isArray(called)) [called] = called;
+
+        if (!connection || !department || !contact || !called)
+          throw new Error(`Mensagem não foi carregada de forma válida.`);
+
+        const message: IMessage = {
+          date: new Date(dataMensagem),
+          body,
+          chatType: tipo_chat,
+          send: !!flag_enviado,
+          id: id_mensagem,
+          connection,
+          department,
+          contact,
+          called,
+          getMedia: async () => {
+            const { data: media, headers } = await this.api.get(`/chat/getMediaFromMessageID`, {
+              params: { token: this.authInfo.userToken, id_mensagem },
+              responseType: 'arraybuffer',
+            });
+
+            return {
+              buffer: media,
+              contentType: headers['content-type'],
+            };
+          },
+        };
 
         this.emit('message', message);
       }
@@ -387,11 +528,13 @@ export default class Macrochat extends EventEmitter {
     await this.connectWS();
     await Promise.all([this.loadConnections(), this.loadDepartments(), this.loadContacts()]);
     await this.loadUsers(); // Depende do carregamento de departamentos
+    await this.loadCalleds(); // Depende dos carregamentos anteriores
     // ********************************************
     this.logger.debug(`${this.connections.length} conexões carregados`);
     this.logger.debug(`${this.departments.length} departamentos carregados`);
     this.logger.debug(`${this.contacts.length} contatos carregados`);
     this.logger.debug(`${this.users.length} Usuários carregados`);
+    this.logger.debug(`${this.calleds.length} Chamados carregados`);
   }
 
   async sendMessage({
@@ -464,3 +607,6 @@ export default class Macrochat extends EventEmitter {
     if (!ok) throw new Error(`Não foi possível transferir o atendimento`);
   }
 }
+
+export default Macrochat;
+export { MCConnectionState, EStatusCalled, ESendMessageType, IConnection, IDepartment, IUser, IContact, ICalled };
