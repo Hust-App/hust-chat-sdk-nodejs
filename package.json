@@ -1,6 +1,6 @@
 {
   "name": "macrotix-sdk-nodejs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SDK Macrotix Tecnologia",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -39,5 +39,13 @@
     "ws": "^7.4.4"
   },
   "author": "Macrotix Tecnologia",
-  "license": "ISC"
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Macrotix-Tecnologia/macrotix-sdk-nodejs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Macrotix-Tecnologia/macrotix-sdk-nodejs/issues"
+  },
+  "homepage": "https://github.com/Macrotix-Tecnologia/macrotix-sdk-nodejs#readme"
 }

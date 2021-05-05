@@ -26,10 +26,53 @@ SDK em NodeJS com Typescript para auxílio no desenvolvimento das integrações 
         └── contacts
 ```
 
+## Eventos
+Para usar os eventos é preciso iniciar o monitoramento com o comando: `startCalledMonitor(time)`
+
+```typescript
+/** Quando uma nova mensagem é recebida **/
+on('message')
+
+/** Quando um chamado muda de atendente **/
+on('called:change:user')
+
+/** Quando um chamado muda de departamento **/
+on('called:change:department')
+
+/** Quando um atendimento muda de status **/
+on('called:change:status')
+
+/** Quando um novo chamado é iniciado **/
+on('newCalled')
+```
+
+## Principais comandos
+```typescript
+/** Retorna um atendimento específico ou por período **/
+MC.getCalled({ id?: number; dateStart?: Date; dateEnd?: Date; });
+
+/** Envia uma mensagem ou mídia **/
+MC.sendMessage({
+  number: string;
+  text: string;
+  connection?: IConnection;
+  file?: { name: string; file: Buffer };
+  department?: IDepartment;
+  contact?: IContact;
+});
+
+/** Transfere um atendimento **/
+transferAttendance({ id_caller: number; department: IDepartment; user?: IUser; });
+
+/** Finaliza um atendimento **/
+async finishAttendance({ called: ICalled; flagSilent?: boolean });
+
+```
+
 ## Exemplo de uso
 
 ```typescript
-import Macrochat from './src/Macrotchat';
+import Macrochat from '@macrotix-tecnologia/macrotix-sdk-nodejs';
 
 (async () => {
   const MC = new Macrochat();
