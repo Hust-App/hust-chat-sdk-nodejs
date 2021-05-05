@@ -557,11 +557,15 @@ class Macrochat extends EventEmitter {
     text,
     connection,
     file,
+    department,
+    contact,
   }: {
     number: string;
     text: string;
     connection?: IConnection;
     file?: { name: string; file: Buffer };
+    department?: IDepartment;
+    contact?: IContact;
   }): Promise<void> {
     if (['@g.us'].indexOf(number) > -1) return;
 
@@ -590,7 +594,17 @@ class Macrochat extends EventEmitter {
       chatID,
       arquivo: file,
       token: tokenAuthenticated,
+      id_departamento_fk: '',
+      id_contato: '',
     };
+
+    if (department) data.id_departamento_fk = department.id.toString();
+    if (contact) {
+      data.chatID = contact.whatsappId;
+      data.numero = 'a';
+      data.id_contato = contact.id.toString();
+      data.token = this.authInfo.userToken;
+    }
 
     this.logger.info(`Enviando nova mensagem para [${number}]`);
 
@@ -665,6 +679,16 @@ class Macrochat extends EventEmitter {
     }, time * 1000);
   }
 
+  async finishAttendance({ called, flagSilent }: { called: ICalled; flagSilent?: boolean }): Promise<void> {
+    await this.api.get(`/chamado/finalizarChamado`, {
+      params: {
+        id_chamado: called.id,
+        flag_silencioso: flagSilent,
+        token: this.authInfo.userToken,
+      },
+    });
+  }
 }
+
 export default Macrochat;
 export { MCConnectionState, EStatusCalled, ESendMessageType, IConnection, IDepartment, IUser, IContact, ICalled };
