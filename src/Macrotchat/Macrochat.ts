@@ -105,6 +105,21 @@ enum ESendMessageType {
   showNameAttendance,
 }
 
+declare interface Macrochat {
+  on(event: 'message', listener: (result: IMessage) => void): this;
+
+  on(event: 'called:change:user', listener: (result: { newCalled: ICalled; currentCalled: ICalled }) => void): this;
+
+  on(
+    event: 'called:change:department',
+    listener: (result: { newCalled: ICalled; currentCalled: ICalled }) => void,
+  ): this;
+
+  on(event: 'called:change:status', listener: (result: { newCalled: ICalled; currentCalled: ICalled }) => void): this;
+
+  on(event: 'newCalled', listener: (result: ICalled) => void): this;
+}
+
 class Macrochat extends EventEmitter {
   constructor() {
     super();
@@ -606,7 +621,50 @@ class Macrochat extends EventEmitter {
 
     if (!ok) throw new Error(`Não foi possível transferir o atendimento`);
   }
-}
 
+  startCalledMonitor(time = 30): void {
+    let running = false;
+    setInterval(async () => {
+      try {
+        if (!running) {
+          running = true;
+          const calleds = await this.getCalled({
+            dateStart: new Date(new Date().setDate(new Date().getDate() - 1)),
+            dateEnd: new Date(),
+          });
+
+          if (calleds && Array.isArray(calleds)) {
+            for (let i = 0; i < calleds.length; i += 1) {
+              const newCalled = calleds[i];
+              const currentCalledKey = this.calleds.map(prop => prop.id).indexOf(newCalled.id);
+              const currentCalled = this.calleds[currentCalledKey];
+              if (currentCalled) {
+                if (newCalled.user?.id !== currentCalled.user?.id)
+                  this.emit('called:change:user', {
+                    newCalled,
+                    currentCalled,
+                  });
+
+                if (newCalled.department?.id !== currentCalled.department?.id)
+                  this.emit('called:change:department', { newCalled, currentCalled });
+
+                if (newCalled.status !== currentCalled.status)
+                  this.emit('called:change:status', { newCalled, currentCalled });
+
+                this.calleds[currentCalledKey] = newCalled;
+              } else {
+                this.calleds.push(calleds[i]);
+                this.emit('newCalled', calleds[i]);
+              }
+            }
+          }
+        }
+      } finally {
+        running = false;
+      }
+    }, time * 1000);
+  }
+
+}
 export default Macrochat;
 export { MCConnectionState, EStatusCalled, ESendMessageType, IConnection, IDepartment, IUser, IContact, ICalled };
