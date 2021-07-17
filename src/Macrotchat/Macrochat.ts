@@ -399,7 +399,7 @@ class Macrochat extends EventEmitter {
 
     this.logger.debug('Inicializando conexão WebSocket');
 
-    this.conn = new WS(`wss://${this.api.defaults.baseURL?.split('/')[2]}:19548`);
+    this.conn = new WS(`wss://${this.api.defaults.baseURL?.split('/')[2]}:2083`);
     this.conn.on('open', () => {
       this.logger.debug('Conexão WebSocket realizada com sucesso');
       clearInterval(intervalPingPong);
