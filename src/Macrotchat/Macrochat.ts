@@ -444,7 +444,7 @@ class Macrochat extends EventEmitter {
         } = rest;
 
         // TODO - Retornar também mensagens enviadas
-        if (flag_enviado) return;
+        // if (flag_enviado) return;
 
         const connection = this.connections.find(el => el.id === id_whatsapp_conexao_fk);
         const department = this.departments.find(el => el.id === id_departamento);
