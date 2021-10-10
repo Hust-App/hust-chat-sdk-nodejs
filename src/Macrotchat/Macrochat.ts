@@ -240,7 +240,7 @@ class Macrochat extends EventEmitter {
 
     const dataPost = {
       token: this.authInfo.userToken,
-      id_chamado: id,
+      protocolo: id,
       periodoInicial: dateStart,
       periodoFinal: dateEnd,
     };
