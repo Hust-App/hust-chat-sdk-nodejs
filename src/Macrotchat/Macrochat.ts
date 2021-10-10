@@ -105,6 +105,16 @@ enum ESendMessageType {
   showNameAttendance,
 }
 
+enum EConfig {
+  LoadAllCalledInStart,
+}
+
+enum EEventsMonitor {
+  ChatUser,
+  AllChats,
+  ConnectionsStatus,
+}
+
 declare interface Macrochat {
   on(event: 'message', listener: (result: IMessage) => void): this;
 
@@ -146,7 +156,11 @@ class Macrochat extends EventEmitter {
 
   messageSendConfig: Array<ESendMessageType> = [ESendMessageType.showNameAttendance];
 
-  protected conn: WS;
+  config: Array<EConfig> = [];
+
+  eventsMonitor: Array<EEventsMonitor> = [EEventsMonitor.ChatUser, EEventsMonitor.ConnectionsStatus];
+
+  public conn: WS;
 
   private async loadDepartments(): Promise<void> {
     const getDepartment = (departamentos: Array<any>): Array<IDepartment> => {
@@ -421,8 +435,14 @@ class Macrochat extends EventEmitter {
         if (authenticated) {
           this.logger.info('Login WebSocket realizado com sucesso, conectado e pronto');
 
-          this.conn.send(JSON.stringify({ metodo: 'adicionarEvento', evento: 'monitorarChat' }));
-          this.conn.send(JSON.stringify({ metodo: 'adicionarEvento', evento: 'monitorarStatusConexoes' }));
+          if (this.eventsMonitor.indexOf(EEventsMonitor.ChatUser) > -1)
+            this.conn.send(JSON.stringify({ metodo: 'adicionarEvento', evento: 'monitorarChat' }));
+
+          if (this.eventsMonitor.indexOf(EEventsMonitor.AllChats) > -1)
+            this.conn.send(JSON.stringify({ metodo: 'adicionarEvento', evento: 'monitorarAllChats' }));
+
+          if (this.eventsMonitor.indexOf(EEventsMonitor.ConnectionsStatus) > -1)
+            this.conn.send(JSON.stringify({ metodo: 'adicionarEvento', evento: 'monitorarStatusConexoes' }));
         } else this.logger.error('Falha na autenticação WebSocket');
       }
 
@@ -543,7 +563,7 @@ class Macrochat extends EventEmitter {
     await this.connectWS();
     await Promise.all([this.loadConnections(), this.loadDepartments(), this.loadContacts()]);
     await this.loadUsers(); // Depende do carregamento de departamentos
-    await this.loadCalleds(); // Depende dos carregamentos anteriores
+    if (this.config.indexOf(EConfig.LoadAllCalledInStart) > -1) await this.loadCalleds(); // Depende dos carregamentos anteriores
     // ********************************************
     this.logger.debug(`${this.connections.length} conexões carregados`);
     this.logger.debug(`${this.departments.length} departamentos carregados`);
@@ -691,4 +711,16 @@ class Macrochat extends EventEmitter {
 }
 
 export default Macrochat;
-export { MCConnectionState, EStatusCalled, ESendMessageType, IConnection, IDepartment, IUser, IContact, ICalled };
+export {
+  MCConnectionState,
+  EStatusCalled,
+  ESendMessageType,
+  EConfig,
+  EEventsMonitor,
+  EDeviceState,
+  IConnection,
+  IDepartment,
+  IUser,
+  IContact,
+  ICalled,
+};
