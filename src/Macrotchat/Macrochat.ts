@@ -494,7 +494,7 @@ class Macrochat extends EventEmitter {
           }
         }
 
-        let called = await this.getCalled({ id: id_chamado });
+        let called = id_chamado ? await this.getCalled({ id: id_chamado }) : null;
         if (Array.isArray(called)) [called] = called;
 
         if (!connection || !department || !contact || !called)
