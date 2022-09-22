@@ -1,6 +1,6 @@
 {
   "name": "@macrotix-tecnologia/macrotix-sdk-nodejs",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "SDK Macrotix Tecnologia",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,6 +8,7 @@
     "dev": "ts-node-dev --respawn --transpile-only --exit-child --clear --ignore node_modules app.ts",
     "build:ts": "tsc --build",
     "prepare": "npm run build:ts",
+    "publish": "npm run prepare && npm publish --access public",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "devDependencies": {
