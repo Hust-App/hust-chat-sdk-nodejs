@@ -60,3 +60,5 @@ dist
 .vscode/*
 *.code-workspace
 .history
+
+package-lock.json
