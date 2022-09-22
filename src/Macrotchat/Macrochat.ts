@@ -708,6 +708,15 @@ class Macrochat extends EventEmitter {
       },
     });
   }
+
+  async registerPhone(number: string, name: string): Promise<void> {
+    const params = { numero: number, token: this.authInfo.userToken };
+    const { data } = await this.api.get(`/contato/getContatoInfo`, { params });
+    const { contato } = data;
+
+    const dataPost = { id_contato: contato.id_contato, nome: (name || '').trim(), token: this.authInfo.userToken };
+    await this.api.post(`/contato/cadastrarContato`, dataPost);
+  }
 }
 
 export default Macrochat;
