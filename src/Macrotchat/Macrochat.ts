@@ -128,6 +128,8 @@ declare interface Macrochat {
   on(event: 'called:change:status', listener: (result: { newCalled: ICalled; currentCalled: ICalled }) => void): this;
 
   on(event: 'newCalled', listener: (result: ICalled) => void): this;
+
+  on(event: 'websocket:open', listener: () => void): this;
 }
 
 class Macrochat extends EventEmitter {
@@ -156,13 +158,14 @@ class Macrochat extends EventEmitter {
 
   messageSendConfig: Array<ESendMessageType> = [ESendMessageType.showNameAttendance];
 
-  config: Array<EConfig> = [];
+  public config: Array<EConfig> = [];
 
-  eventsMonitor: Array<EEventsMonitor> = [EEventsMonitor.ChatUser, EEventsMonitor.ConnectionsStatus];
+  public eventsMonitor: Array<EEventsMonitor> = [EEventsMonitor.ChatUser, EEventsMonitor.ConnectionsStatus];
 
   public conn: WS;
 
   private async loadDepartments(): Promise<void> {
+    const allDepartments: Array<any> = [];
     const getDepartment = (departamentos: Array<any>): Array<IDepartment> => {
       const departmentsList: Array<IDepartment> = [];
 
@@ -179,6 +182,7 @@ class Macrochat extends EventEmitter {
         if (!departmentsList[i].subDepartment) delete departmentsList[i].subDepartment;
       }
 
+      allDepartments.push(...departmentsList);
       return departmentsList;
     };
 
@@ -190,7 +194,8 @@ class Macrochat extends EventEmitter {
 
     if (!ok) throw new Error(`Não foi possível buscar os departamentos [${mensagem_usuario}]`);
 
-    this.departments = getDepartment(departamentos);
+    getDepartment(departamentos);
+    this.departments = allDepartments;
   }
 
   private serializeCalled(chamado: any): ICalled {
@@ -425,6 +430,7 @@ class Macrochat extends EventEmitter {
 
       this.logger.debug('Realizando login conexão WebSocket');
       this.conn.send(JSON.stringify({ metodo: 'login', token: this.authInfo.userToken }));
+      this.emit('websocket:open');
     });
 
     this.conn.on('message', async data => {
@@ -434,15 +440,14 @@ class Macrochat extends EventEmitter {
         const { autenticado: authenticated } = rest;
         if (authenticated) {
           this.logger.info('Login WebSocket realizado com sucesso, conectado e pronto');
+          const { eventsMonitor } = this;
+          const ChatUser = eventsMonitor.includes(EEventsMonitor.ChatUser) ? 'adicionarEvento' : 'removerEvento';
+          const AllChats = eventsMonitor.includes(EEventsMonitor.AllChats) ? 'adicionarEvento' : 'removerEvento';
+          const Conn = eventsMonitor.includes(EEventsMonitor.ConnectionsStatus) ? 'adicionarEvento' : 'removerEvento';
 
-          if (this.eventsMonitor.indexOf(EEventsMonitor.ChatUser) > -1)
-            this.conn.send(JSON.stringify({ metodo: 'adicionarEvento', evento: 'monitorarChat' }));
-
-          if (this.eventsMonitor.indexOf(EEventsMonitor.AllChats) > -1)
-            this.conn.send(JSON.stringify({ metodo: 'adicionarEvento', evento: 'monitorarAllChats' }));
-
-          if (this.eventsMonitor.indexOf(EEventsMonitor.ConnectionsStatus) > -1)
-            this.conn.send(JSON.stringify({ metodo: 'adicionarEvento', evento: 'monitorarStatusConexoes' }));
+          this.conn.send(JSON.stringify({ metodo: ChatUser, evento: 'monitorarChat' }));
+          this.conn.send(JSON.stringify({ metodo: AllChats, evento: 'monitorarAllChats' }));
+          this.conn.send(JSON.stringify({ metodo: Conn, evento: 'monitorarStatusConexoes' }));
         } else this.logger.error('Falha na autenticação WebSocket');
       }
 
