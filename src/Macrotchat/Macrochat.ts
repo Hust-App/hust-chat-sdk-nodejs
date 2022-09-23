@@ -592,8 +592,6 @@ class Macrochat extends EventEmitter {
     department?: IDepartment;
     contact?: IContact;
   }): Promise<void> {
-    if (['@g.us'].indexOf(number) > -1) return;
-
     const chatID = number.indexOf('@') > -1 ? number : undefined;
     let message = text;
 
@@ -613,7 +611,7 @@ class Macrochat extends EventEmitter {
     if (tokenAuthenticated) message = `\n${message}`;
 
     const data = {
-      numero: number,
+      numero: !chatID ? number : 'a',
       uuid: connectionToSend.uuid,
       texto: message,
       chatID,
