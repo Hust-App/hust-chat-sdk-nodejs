@@ -712,12 +712,21 @@ class Macrochat extends EventEmitter {
     });
   }
 
-  async registerPhone(number: string, name: string): Promise<void> {
+  async getContactInfo(number: string): Promise<any> {
     const params = { numero: number, token: this.authInfo.userToken };
     const { data } = await this.api.get(`/contato/getContatoInfo`, { params });
-    const { contato } = data;
 
-    const dataPost = { id_contato: contato.id_contato, nome: (name || '').trim(), token: this.authInfo.userToken };
+    const { ok, mensagem_usuario, descricao_usuario, contato } = data;
+
+    if (!ok) throw new Error(`${mensagem_usuario}${descricao_usuario}`);
+
+    return contato;
+  }
+
+  async registerPhone(number: string, name: string): Promise<void> {
+    const contact = await this.getContactInfo(number);
+
+    const dataPost = { id_contato: contact.id_contato, nome: (name || '').trim(), token: this.authInfo.userToken };
     await this.api.post(`/contato/cadastrarContato`, dataPost);
   }
 }
