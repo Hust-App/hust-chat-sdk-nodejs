@@ -4,7 +4,10 @@ import pino from 'pino';
 import axios, { AxiosInstance } from 'axios';
 
 const logger = pino({
-  prettyPrint: { levelFirst: true, ignore: 'hostname', translateTime: true },
+  transport: {
+    target: 'pino-pretty',
+    options: { colorize: true, levelFirst: true, ignore: 'hostname', translateTime: true },
+  },
 });
 
 enum MCConnectionState {
@@ -138,7 +141,7 @@ class Macrochat extends EventEmitter {
     this.setMaxListeners(30);
   }
 
-  api: AxiosInstance = axios.create({ baseURL: `https://api.macrochat.com.br/v1` });
+  api: AxiosInstance = axios.create({ baseURL: `https://apiv1.hustapp.com/v1` });
 
   logger = logger.child({});
 
@@ -154,7 +157,7 @@ class Macrochat extends EventEmitter {
 
   calleds: Array<ICalled> = [];
 
-  protected authInfo: AuthenticationCredentials;
+  authInfo: AuthenticationCredentials;
 
   messageSendConfig: Array<ESendMessageType> = [ESendMessageType.showNameAttendance];
 
@@ -588,7 +591,7 @@ class Macrochat extends EventEmitter {
     number: string;
     text: string;
     connection?: IConnection;
-    file?: { name: string; file: Buffer };
+    file?: { name: string; buffer: Buffer; mimeType: string; sticker?: boolean };
     department?: IDepartment;
     contact?: IContact;
   }): Promise<void> {
@@ -615,7 +618,13 @@ class Macrochat extends EventEmitter {
       uuid: connectionToSend.uuid,
       texto: message,
       chatID,
-      arquivo: file,
+      arquivo: file
+        ? {
+            base64: `data:${file.mimeType};base64,${file.buffer.toString('base64')}`,
+            nome: file.name,
+            sticker: file.sticker,
+          }
+        : undefined,
       token: tokenAuthenticated,
       id_departamento_fk: '',
       id_contato: '',
